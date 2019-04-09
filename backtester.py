@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+import datetime
 from data_read import get_close_dataset
 
 
@@ -73,6 +74,46 @@ def generate_n_random_portfolios(returns_period, covariance, num_portfolios=2000
     return df
 
 
+def generate_volume_weights(volumes, date):
+    time_delta = datetime.timedelta(days=0)
+    while True:
+        try:
+            volumes_period = volumes[(volumes.index == date)]
+            portfolio = volumes_period/volumes_period.sum(axis=1).values[0]
+            break
+        except IndexError:
+           time_delta += datetime.timedelta(days=2)
+           volumes_period = volumes[(volumes.index == date-time_delta)]
+           break
+    portfolio = volumes_period/volumes_period.sum(axis=1).values[0]
+    for i in portfolio.values[0]:
+        if i < 0.02:
+            addname = portfolio[portfolio != 0]
+            name = addname.index[addname == addname.min()]
+            mval = portfolio[portfolio < 0.02]
+            mval = mval[mval != 0]
+            name_mval = portfolio.index[portfolio == mval.max()][0]
+            if mval.shape[0] > 1:
+                portfolio[name_mval] += portfolio.min()
+                portfolio[i] = 0
+            else:
+                # add weight to the least one but more that this
+                minval = portfolio[[x for x in portfolio.index if x not in name]].min()
+                name_mval = portfolio.index[portfolio == minval][0]
+                portfolio[name_mval] += portfolio.min()
+                portfolio[i] = 0
+    time_delta = 0
+    portfolio.columns = [x+'_Weight' for x in portfolio.columns]
+    return portfolio
+
+
+def generate_inverse_volatility_weights(returns):
+    stds = returns.std()
+    portfolio = stds/stds.sum(axis=1).values[0]
+    portfolio.columns = [x+'_Weight' for x in portfolio.columns]
+    return portfolio
+
+
 def visualize_frontier(df):
     """
     Visualize profit-loss of each randomly generated portfolio in terms of return/variance
@@ -113,16 +154,20 @@ tickers = [
 # define rebalancing method
 # Variants are: 'Mean-Variance', 'Volume weighted', 'Inverse Volatility' and 'Custom'
 alpha = 'Mean-Variance'
+alpha = 'Volume weighted'
 # optimization parameter for Mean-Variance method: 'Sharpe', 'Min Variance',
 parameter = 'Sharpe'
 
 # define rebalancing period in months
-rebalancing_period = 12
+rebalancing_period = 6
 
 # load required dataset
 closes = get_close_dataset(tickers, source='yahoo',
                            start_t=start_date, end_t=end_date,
-                           fields=['Close'])
+                           fields=['Close', 'Volume'])
+volumes = closes[[x for x in closes.columns if 'Volume' in x]]
+closes = closes[[x for x in closes.columns if 'Close' in x]]
+
 
 # all calculations begin here
 # these store data
@@ -132,9 +177,14 @@ start = start_date
 for end in pd.date_range(start=start_date, end=end_date, freq=str(rebalancing_period)+'M', closed='right'):
     print(start, end)
     # start = end
-    # idf = close_prices.index[0]
-    # closes.index.get_loc(idf)
     close_prices = closes[(closes.index <= end) & (closes.index >= start)]
+    # volumes_assets = volumes[(volumes.index <= end) & (volumes.index >= start)]
+    idf = close_prices.index[0]
+    ind = closes.index.get_loc(idf)
+    if ind == 0:
+        ind = 1
+    close_prices = closes.iloc[ind-1:, :]
+    close_prices = close_prices[close_prices.index <= end]
     close_prices.fillna(method='ffill', inplace=True)
     try:
         returns_period = (close_prices.iloc[-1, :] - close_prices.iloc[0, :]) / close_prices.iloc[0, :]
@@ -144,9 +194,8 @@ for end in pd.date_range(start=start_date, end=end_date, freq=str(rebalancing_pe
 
     print('returns: \n{}'.format(returns_period))
 
-    covariance_matrix = close_prices[returns_period.dropna().index].dropna(axis=1).cov()
-
     if alpha == 'Mean-Variance':
+        covariance_matrix = close_prices[returns_period.dropna().index].dropna(axis=1).cov()
         df = generate_n_random_portfolios(returns_period,
                                           covariance_matrix,
                                           num_portfolios=20000)
@@ -160,9 +209,10 @@ for end in pd.date_range(start=start_date, end=end_date, freq=str(rebalancing_pe
             target_portfolio = sharpe_portfolio
         if parameter == 'Min Variance':
             target_portfolio = min_variance_port
-
-    print(target_portfolio.columns)
-    print(target_portfolio.values)
+    if alpha == 'Volume weighted':
+        df = generate_volume_weights(volumes, end)
+        target_portfolio = df
+    # if alpha == 'Volume weighted':
 
     y_weights = [x for x in target_portfolio.columns if 'Weight' in x]
     # we must shift data by 1 period (initially we calculate data for the period that has passed)
@@ -172,7 +222,13 @@ for end in pd.date_range(start=start_date, end=end_date, freq=str(rebalancing_pe
         try:
             close_prices = closes[(closes.index <= end_bt) & (closes.index > start_bt)]
             m_prices = close_prices[close_prices.index.month == i.month]
-            m_returns = (m_prices.iloc[-1, :] - m_prices.iloc[0, :]) / m_prices.iloc[0, :]
+            idf = m_prices.index[0]
+            ind = close_prices.index.get_loc(idf)
+            if ind == 0:
+                ind = 1
+            end_prev_period = close_prices.iloc[ind-1, :]
+            # end_prev_period.append(m_prices)
+            m_returns = (m_prices.iloc[-1, :] - end_prev_period) / end_prev_period
             wgths = target_portfolio[y_weights]
             month_ret = np.dot(wgths, m_returns.fillna(0))[0]
             pnl_target.append(month_ret+1)
@@ -186,3 +242,5 @@ portfolio_returns = pd.DataFrame(data=pnl_target, index=pnl_months)
 portfolio_returns.columns = ['Portfolio_returns']
 portfolio_returns['CumRets'] = portfolio_returns['Portfolio_returns'].cumprod()  # * 10
 portfolio_returns['CumRets'].plot()
+
+print('Done')
