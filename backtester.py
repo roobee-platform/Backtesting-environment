@@ -109,8 +109,10 @@ def generate_volume_weights(volumes, date):
 
 def generate_inverse_volatility_weights(returns):
     stds = returns.std()
-    portfolio = stds/stds.sum(axis=1).values[0]
-    portfolio.columns = [x+'_Weight' for x in portfolio.columns]
+    portfolio = stds/stds.sum()
+
+    portfolio.index = [x+'_Weight' for x in portfolio.index]
+    portfolio = pd.DataFrame(portfolio).T
     return portfolio
 
 
@@ -155,6 +157,7 @@ tickers = [
 # Variants are: 'Mean-Variance', 'Volume weighted', 'Inverse Volatility' and 'Custom'
 alpha = 'Mean-Variance'
 alpha = 'Volume weighted'
+alpha = 'Inverse Volatility'
 # optimization parameter for Mean-Variance method: 'Sharpe', 'Min Variance',
 parameter = 'Sharpe'
 
@@ -212,7 +215,9 @@ for end in pd.date_range(start=start_date, end=end_date, freq=str(rebalancing_pe
     if alpha == 'Volume weighted':
         df = generate_volume_weights(volumes, end)
         target_portfolio = df
-    # if alpha == 'Volume weighted':
+    if alpha == 'Inverse Volatility':
+        df = generate_inverse_volatility_weights(close_prices.pct_change().dropna())
+        target_portfolio = df
 
     y_weights = [x for x in target_portfolio.columns if 'Weight' in x]
     # we must shift data by 1 period (initially we calculate data for the period that has passed)
