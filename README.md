@@ -1,4 +1,4 @@
-# Backtester
+
 
 ## Description
 The given backtesting environment allows you to access past performance of your portfolio for a defined time range.
