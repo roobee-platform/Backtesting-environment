@@ -140,6 +140,13 @@ def visualize_frontier(df):
     return True
 
 
+def visualize_returns(pnl_target, pnl_months):
+    portfolio_returns = pd.DataFrame(data=pnl_target, index=pnl_months)
+    portfolio_returns.columns = ['Portfolio_returns']
+    portfolio_returns['CumRets'] = portfolio_returns['Portfolio_returns'].cumprod()  # * 10
+    (portfolio_returns['CumRets']-1).plot()
+
+
 # define time range
 start_date = '2015-12-31'
 end_date = '2019-04-01'
@@ -156,8 +163,8 @@ tickers = [
 # define rebalancing method
 # Variants are: 'Mean-Variance', 'Volume weighted', 'Inverse Volatility' and 'Custom'
 alpha = 'Mean-Variance'
-alpha = 'Volume weighted'
-alpha = 'Inverse Volatility'
+# alpha = 'Volume weighted'
+# alpha = 'Inverse Volatility'
 # optimization parameter for Mean-Variance method: 'Sharpe', 'Min Variance',
 parameter = 'Sharpe'
 
@@ -243,9 +250,6 @@ for end in pd.date_range(start=start_date, end=end_date, freq=str(rebalancing_pe
 
     start = end
 
-portfolio_returns = pd.DataFrame(data=pnl_target, index=pnl_months)
-portfolio_returns.columns = ['Portfolio_returns']
-portfolio_returns['CumRets'] = portfolio_returns['Portfolio_returns'].cumprod()  # * 10
-portfolio_returns['CumRets'].plot()
+visualize_returns(pnl_target, pnl_months)
 
 print('Done')
