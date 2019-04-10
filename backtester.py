@@ -145,6 +145,7 @@ def visualize_returns(pnl_target, pnl_months):
     portfolio_returns.columns = ['Portfolio_returns']
     portfolio_returns['CumRets'] = portfolio_returns['Portfolio_returns'].cumprod()  # * 10
     (portfolio_returns['CumRets']-1).plot()
+    return portfolio_returns
 
 
 # define time range
