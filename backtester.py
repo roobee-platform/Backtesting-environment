@@ -1,8 +1,10 @@
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import datetime
 from data_read import get_close_dataset
+import open_source_backtester.preset_builder as psb
 # import random
 # random.seed(124)
 
@@ -350,6 +352,7 @@ if returns.index[-1] != pd.to_datetime(weights_history.index[-1]):
                                                                index=[returns.index[-1]])])
 weights_history.index = pd.to_datetime(weights_history.index)
 weights_history = weights_history.resample('1D').ffill()
+# weights_history = weights_history.shift(1).dropna(0)
 
 # together = closes.join(returns).join(weights_history)#.dropna()
 together = returns.join(weights_history)
@@ -364,10 +367,8 @@ together = together[[x for x in together.columns if 'Close' in x] +
                     [x for x in together.columns if 'Returns' in x] +
                     [x for x in together.columns if 'Weight' in x]]
 
-# together.to_excel('python_excel/excel_weights/'+name+'.xls')
-# together = pd.read_excel('python_excel/excel_weights/'+name+'.xls', index_col=0, parse_dates=True)
-together.to_excel('open_source_backtester/weights_test/'+name+'.xls')
-together = pd.read_excel('open_source_backtester/weights_test/'+name+'.xls', index_col=0, parse_dates=True)
+together.to_excel('historical_data/'+name+'.xls')
+together = pd.read_excel('historical_data/'+name+'.xls', index_col=0, parse_dates=True)
 
 weights_together = together[[x for x in together.columns if 'Weight' in x]]
 returns_together = together[[x for x in together.columns if 'Returns' in x]]
@@ -376,15 +377,15 @@ portfolio_returns = returns_together * weights_together.values
 portfolio_returns = portfolio_returns.sum(axis=1)
 Capital = 1000000
 Capital1 = pd.DataFrame(portfolio_returns, index=returns_together.index, columns=['Returns'])
-Capital1['$priceChangeTotal'] = (Capital1['Returns']+1).cumprod()
-Capital1['$costPerUnit'] = Capital*Capital1['$priceChangeTotal']
-Capital1['$priceChangeTotal'] = Capital1['$priceChangeTotal']-1
+Capital1['priceChangeTotal'] = (Capital1['Returns']+1).cumprod()
+Capital1['costPerUnit'] = Capital*Capital1['priceChangeTotal']
+Capital1['priceChangeTotal'] = Capital1['priceChangeTotal']-1
 Capital1_weekly = Capital1[Capital1.index.weekday == 0]
-Capital1_weekly['$priceChangePerWeek'] = Capital1_weekly['$costPerUnit'].pct_change().fillna(0)
+Capital1_weekly['priceChangePerWeek'] = Capital1_weekly['$costPerUnit'].pct_change().fillna(0)
 del Capital1_weekly['Returns']
-Capital1_weekly = Capital1_weekly[['$costPerUnit', '$priceChangeTotal', '$priceChangePerWeek']]
-Capital1_weekly.index.name = '$date'
-Capital1_weekly.to_csv('python_excel/excel_weights/'+name+'.csv')
-Capital1.to_excel('open_source_backtester/presetHistory_test/'+name+'.xls')
+Capital1_weekly = Capital1_weekly[['costPerUnit', 'priceChangeTotal', 'priceChangePerWeek']]
+Capital1_weekly.index.name = 'date'
+Capital1_weekly.to_csv('historical_returns/'+name+'_weekly.csv')
+Capital1.to_excel('historical_returns/'+name+'_daily.xls')
 
 print('Done')
